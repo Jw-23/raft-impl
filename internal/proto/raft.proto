@@ -1,0 +1,54 @@
+// 使用 proto3 语法
+syntax = "proto3";
+
+// 定义 Go 包的路径，生成的文件会放在这个目录下
+// 建议创建一个专门的子目录，如 raftpb
+option go_package = "../raftpb";
+
+package raftpb;
+
+// 日志条目的定义
+message LogEntry {
+  int64  term    = 1; // 日志条目所属的任期
+  bytes  command = 2; // 应用到状态机的命令 (使用 bytes 更通用)
+}
+
+// AppendEntries RPC 的请求参数
+message AppendEntriesRequest {
+  int64       term         = 1; // Leader 的任期
+  string      leader_id    = 2; // Leader 的 ID，以便 Follower 重定向客户端
+  int64       prev_log_index = 3; // 紧邻新日志条目之前的那个日志条目的索引
+  int64       prev_log_term  = 4; // 紧邻新日志条目之前的那个日志条目的任期
+  repeated    LogEntry entries      = 5; // 需要被保存的日志条目 (空表示是心跳)
+  int64       leader_commit= 6; // Leader 已经提交的日志的索引
+}
+
+// AppendEntries RPC 的响应
+message AppendEntriesResponse {
+  int64  term    = 1; // Follower 的当前任期，以便 Leader 更新自己
+  bool   success = 2; // 如果 Follower 包含了匹配 prevLogIndex 和 prevLogTerm 的日志，则为 true
+}
+
+// RequestVote RPC 的请求参数
+message RequestVoteRequest {
+  int64  term           = 1; // Candidate 的任期
+  string candidate_id   = 2; // Candidate 的 ID
+  int64  last_log_index = 3; // Candidate 的最后一条日志的索引
+  int64  last_log_term  = 4; // Candidate 的最后一条日志的任期
+}
+
+// RequestVote RPC 的响应
+message RequestVoteResponse {
+  int64  term         = 1; // Follower 的当前任期，以便 Candidate 更新自己
+  bool   vote_granted = 2; // 如果 Candidate 获得了选票，则为 true
+}
+
+// 定义 Raft 的 RPC 服务
+// gRPC 会基于这个服务定义生成客户端和服务器端的接口
+service RaftService {
+  // 发送心跳和日志条目
+  rpc AppendEntries(AppendEntriesRequest) returns (AppendEntriesResponse);
+  
+  // 请求选票
+  rpc RequestVote(RequestVoteRequest) returns (RequestVoteResponse);
+}
